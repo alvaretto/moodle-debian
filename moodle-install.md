@@ -1613,6 +1613,13 @@ sudo chmod +x /usr/local/bin/moodle-restore.sh
 
 Subir la documentación y configuración del proyecto a GitHub como respaldo adicional.
 
+### Configurar identidad de Git
+
+```bash
+git config --global user.name "alvaretto"
+git config --global user.email "alvaroangelm@gmail.com"
+```
+
 ### Generar clave SSH
 
 ```bash
