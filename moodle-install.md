@@ -1953,7 +1953,41 @@ Tendrás estos iconos en el escritorio:
 3. Click en **"Estado Moodle"** para verificar IP y servicios
 4. Indicar a estudiantes: **`http://moodle.local`**
 
-## 13.3 Si Algo Falla
+## 13.3 Matriculación Masiva de Estudiantes
+
+Para registrar muchos estudiantes de una vez: **Administración del sitio → Usuarios → Subir usuarios**.
+
+### Formato del archivo CSV
+
+Columnas mínimas requeridas:
+
+| Columna | Descripción | Ejemplo |
+|---------|-------------|---------|
+| `username` | Nombre de usuario (único) | `est01` |
+| `password` | Contraseña | `Clave123!` |
+| `firstname` | Nombre | `Juan` |
+| `lastname` | Apellido | `Pérez` |
+| `email` | Correo electrónico | `est01@mail.com` |
+
+Para matricular directamente en un curso, agregar:
+
+| Columna | Descripción | Ejemplo |
+|---------|-------------|---------|
+| `course1` | Nombre corto del curso | `icfes-math` |
+| `role1` | Rol en el curso | `student` |
+
+### Ejemplo de CSV
+
+```csv
+username,password,firstname,lastname,email,course1,role1
+est01,Clave123!,Juan,Pérez,est01@mail.com,icfes-math,student
+est02,Clave123!,María,López,est02@mail.com,icfes-math,student
+est03,Clave123!,Carlos,Gómez,est03@mail.com,icfes-math,student
+```
+
+> **Nota**: Las contraseñas deben cumplir la política configurada en **Administración del sitio → Seguridad → Normas del sitio**.
+
+## 13.4 Si Algo Falla
 
 **Problema menor (Moodle no funciona):**
 
