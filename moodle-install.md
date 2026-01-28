@@ -2148,7 +2148,27 @@ sudo -u www-data php /var/www/moodle/admin/cli/purge_caches.php
 
 > `CAP_PROHIBIT` garantiza que no se pueda sobrescribir en ningún contexto inferior (curso, categoría).
 
-### Paso 6: Desactivar auto-matriculación
+### Paso 6: Desactivar acceso de invitados
+
+Impedir completamente el acceso como invitado al sitio y a todos los cursos:
+
+```bash
+# Ocultar botón "Acceder como invitado" de la página de login
+sudo -u www-data php /var/www/moodle/admin/cli/cfg.php --name=guestloginbutton --set=0
+
+# Desactivar auto-login de invitados
+sudo -u www-data php /var/www/moodle/admin/cli/cfg.php --name=autologinguests --set=0
+
+# Desactivar matriculación de invitados en todos los cursos existentes
+sudo -u www-data php -r "
+define('CLI_SCRIPT', true);
+require('/var/www/moodle/config.php');
+global \$DB;
+\$DB->set_field('enrol', 'status', 1, ['enrol' => 'guest']);
+"
+```
+
+### Paso 7: Desactivar auto-matriculación
 
 **Administración del sitio → Extensiones → Matriculaciones → Gestionar plugins de matriculación**
 
