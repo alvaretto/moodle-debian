@@ -2024,7 +2024,88 @@ Para cada campo:
 
 Los estudiantes verán estos campos al editar su perfil o al registrarse.
 
-## 13.5 Si Algo Falla
+## 13.5 Restringir Edición de Perfil del Estudiante
+
+El estudiante solo debe poder editar los campos personalizados ("Otros campos"). Los datos básicos los asigna el profesor y el resto del formulario se oculta.
+
+### Paso 1: Bloquear campos vía autenticación
+
+**Administración del sitio → Extensiones → Autenticación → Cuentas manuales**
+
+Cambiar a **Bloqueado** los siguientes campos:
+
+| Campo | Estado |
+|-------|--------|
+| Nombre | Bloqueado |
+| Apellido(s) | Bloqueado |
+| Dirección de correo | Bloqueado |
+| Ciudad/Pueblo | Bloqueado |
+| País | Bloqueado |
+| Institución | Bloqueado |
+| Departamento | Bloqueado |
+
+Guardar cambios. Estos campos aparecerán visibles pero en gris (no editables) en el perfil del estudiante.
+
+### Paso 2: Ocultar campos innecesarios con CSS
+
+**Administración del sitio → Apariencia → HTML adicional → Dentro de HEAD**
+
+Pegar el siguiente bloque CSS. Solo afecta la página de edición de perfil del estudiante (`/user/edit.php`), no afecta la vista del administrador:
+
+```html
+<style>
+/* === Perfil del estudiante: ocultar campos innecesarios === */
+
+/* Campos dentro de General */
+#page-user-edit #fitem_id_moodlenetprofile,
+#page-user-edit #fitem_id_timezone,
+#page-user-edit #fitem_id_description_editor,
+#page-user-edit [data-groupname="description_editor"],
+
+/* Sección: Imagen del usuario */
+#page-user-edit #id_moodle_picture,
+
+/* Sección: Nombres adicionales */
+#page-user-edit #id_moodle_additional,
+
+/* Sección: Intereses */
+#page-user-edit #id_moodle_interests,
+
+/* Campos dentro de Opcional */
+#page-user-edit #fitem_id_idnumber,
+#page-user-edit #fitem_id_phone1,
+#page-user-edit #fitem_id_phone2,
+#page-user-edit #fitem_id_address {
+    display: none !important;
+}
+
+/* Visibilidad del correo: solo lectura */
+#page-user-edit #fitem_id_maildisplay select {
+    pointer-events: none;
+    opacity: 0.7;
+}
+</style>
+```
+
+### Paso 3: Desactivar auto-matriculación
+
+**Administración del sitio → Extensiones → Matriculaciones → Gestionar plugins de matriculación**
+
+1. Buscar **Auto-matriculación**
+2. Clic en el icono del **ojo** para desactivarla
+3. Solo el profesor matricula estudiantes (manualmente o por CSV)
+
+### Resultado
+
+El formulario de edición de perfil del estudiante mostrará:
+
+| Sección | Campos visibles | Editable |
+|---------|----------------|----------|
+| General | Nombre, Apellido(s), Correo, Visibilidad correo, Ciudad, País | No (bloqueados) |
+| Opcional | Institución, Departamento | No (bloqueados) |
+| Otros campos | Celular, Nombre acudiente, Celular acudiente | Sí |
+
+## 13.6 Si Algo Falla
 
 **Problema menor (Moodle no funciona):**
 
