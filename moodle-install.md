@@ -1640,6 +1640,17 @@ Agregar la clave en GitHub:
 4. Pegar la clave pública
 5. Clic en **Add SSH key**
 
+### Configurar .gitignore
+
+El archivo `.gitignore` evita subir archivos sensibles o innecesarios al repositorio:
+
+```
+.claude/
+datos-sensibles/
+```
+
+La carpeta `datos-sensibles/` contiene archivos con información privada (contraseñas, datos de estudiantes, etc.) que nunca deben subirse a GitHub.
+
 ### Configurar remoto y subir
 
 ```bash
