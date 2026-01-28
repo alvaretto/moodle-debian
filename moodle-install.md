@@ -2599,4 +2599,180 @@ AL TERMINAR:
 
 ---
 
+# APÉNDICE E: Optimizaciones de Producción Post-Instalación
+
+Estas optimizaciones se aplicaron después de comparar la instalación base contra las
+[recomendaciones oficiales de rendimiento de Moodle](https://docs.moodle.org/311/en/Performance_recommendations)
+y el diagnóstico de [MySQLTuner](https://github.com/major/MySQLTuner-perl).
+
+## E.1. MariaDB: skip-name-resolve
+
+MySQLTuner detectó que la resolución inversa DNS estaba activa, lo cual ralentiza cada
+nueva conexión. Se habilitó `skip-name-resolve` en `/etc/mysql/mariadb.conf.d/50-server.cnf`:
+
+```ini
+# Antes (comentado):
+#skip-name-resolve
+
+# Después (activo):
+skip-name-resolve
+```
+
+Verificar que está activo:
+```bash
+sudo mariadb -e "SHOW VARIABLES LIKE 'skip_name_resolve';"
+# Debe mostrar: skip_name_resolve | ON
+```
+
+> **Nota**: Esto es seguro porque todos los grants usan `localhost` o IPs, no nombres de dominio.
+
+## E.2. Mantenimiento semanal de tablas MariaDB
+
+La documentación oficial de Moodle recomienda optimizar las tablas de la base de datos
+semanalmente y después de actualizaciones o borrados masivos (fin de semestre, etc.).
+
+Se creó el script `/usr/local/bin/moodle-db-optimize.sh`:
+```bash
+#!/bin/bash
+# Optimización semanal de tablas MariaDB para Moodle
+# Ejecutar en horario de bajo uso (domingos 4:00 AM)
+
+LOG="/var/log/mysql/optimize.log"
+DATE=$(date '+%Y-%m-%d %H:%M:%S')
+
+echo "[$DATE] Iniciando optimización de tablas..." >> "$LOG"
+mysqlcheck -o moodle --auto-repair 2>&1 >> "$LOG"
+echo "[$DATE] Optimización completada." >> "$LOG"
+echo "---" >> "$LOG"
+```
+
+Cron de root (`sudo crontab -e`):
+```cron
+# Optimización semanal de tablas MariaDB (domingos 4:00 AM)
+0 4 * * 0 /usr/local/bin/moodle-db-optimize.sh
+```
+
+Para ejecutar manualmente:
+```bash
+sudo /usr/local/bin/moodle-db-optimize.sh
+# Revisar el log:
+sudo cat /var/log/mysql/optimize.log
+```
+
+## E.3. OPcache en modo producción
+
+Se cambió OPcache de modo desarrollo (`revalidate_freq = 60`) a modo producción
+(`validate_timestamps = 0`) en `/etc/php/8.4/fpm/conf.d/10-opcache.ini`:
+
+```ini
+opcache.enable = 1
+opcache.memory_consumption = 256
+opcache.interned_strings_buffer = 32
+opcache.max_accelerated_files = 20000
+opcache.validate_timestamps = 0
+opcache.fast_shutdown = 1
+opcache.jit = tracing
+opcache.jit_buffer_size = 64M
+```
+
+> **IMPORTANTE**: Con `validate_timestamps = 0`, PHP-FPM **no detecta cambios** en archivos
+> PHP automáticamente. Después de actualizar Moodle o instalar plugins, **siempre** reiniciar:
+> ```bash
+> sudo systemctl restart php8.4-fpm
+> ```
+
+## E.4. Redis como caché MUC de Moodle (Interfaz Web)
+
+Además de las sesiones PHP (ya configuradas en `config.php`), Redis debe configurarse
+como **almacén de caché de la aplicación** en la interfaz web de Moodle.
+
+> **Diferencia clave**: Las sesiones PHP (`config.php`) son cosa de PHP. El caché MUC
+> (Moodle Universal Cache) es el sistema de caché interno de Moodle para datos de
+> aplicación, sesiones de Moodle, y peticiones.
+
+### Pasos en la interfaz web:
+
+1. Ir a **Administración del sitio → Plugins → Caché → Configuración**
+2. En "Almacenes de caché instalados", buscar **Redis** (debe tener ✓ verde)
+3. Click en **"Añadir instancia"**:
+   - **Nombre**: `Redis_MUC`
+   - **Servidor**: `127.0.0.1:6379`
+   - **Prefijo de clave**: `moodle_muc_` (evita colisiones con las sesiones PHP)
+4. En "Almacenes usados cuando no hay mapeo presente", click **"Editar mapeos"**:
+   - **Aplicación** → Seleccionar `Redis_MUC`
+   - **Sesión** → Seleccionar `Redis_MUC`
+   - **Petición** → Dejar en "Default" (Redis no es compatible con peticiones)
+5. Click **"Guardar cambios"**
+
+### Configuración aplicada:
+
+La instancia `Redis_MUC` fue creada con los siguientes valores:
+
+| Campo | Valor |
+|-------|-------|
+| Nombre de almacén | `Redis_MUC` |
+| Modo Cluster | Desmarcado |
+| Servidor(es) | `127.0.0.1` |
+| Usar cifrado TLS | Desmarcado |
+| Contraseña | (vacío) |
+| Prefijo de clave | `moodle_muc_` |
+| Serializador | El serializador por defecto de PHP |
+| Compresor | Sin compresión |
+| Tiempo de expiración de conexión | 3 |
+
+Los mapeos de caché fueron editados así:
+
+| Modo | Mapeo almacén |
+|------|---------------|
+| **Aplicación** | Redis_MUC |
+| **Sesión** | Redis_MUC |
+| **Solicitud** | Almacén estático por defecto (sin cambios) |
+
+### ¿Por qué Redis y no archivos?
+
+Redis almacena todo en **RAM** (memoria principal), mientras que el almacén de archivos
+por defecto lee/escribe en disco. La diferencia de velocidad es de órdenes de magnitud:
+
+| Aspecto | Caché en archivos (antes) | Caché en Redis (ahora) |
+|---------|---------------------------|------------------------|
+| **Velocidad de lectura** | ~100 MB/s (SSD) | ~10 GB/s (RAM) |
+| **Latencia** | ~0.1-1 ms | ~0.01 ms |
+| **Concurrencia** | Bloqueos de archivo (lento con muchos usuarios) | Operaciones atómicas (sin bloqueos) |
+| **Bajo carga (80 tablets)** | El disco se satura con lecturas/escrituras de caché | La RAM maneja miles de operaciones por segundo |
+| **Dato clave** | Cada carga de página genera decenas de lecturas de caché | Todas esas lecturas ahora van a RAM |
+
+### ¿Redis necesita internet?
+
+**No.** Redis es un servicio que corre **localmente dentro del portátil** (`127.0.0.1`).
+No necesita conexión a internet en ningún momento. Los estudiantes se conectan al
+portátil por la red local (cable/WiFi del router del aula) y Redis atiende las
+solicitudes de caché internamente sin salir del equipo.
+
+```
+[Tablet estudiante] → WiFi/Cable → [Router del aula] → [Portátil Moodle]
+                                                              ├── Nginx (web)
+                                                              ├── PHP-FPM (código)
+                                                              ├── MariaDB (datos)
+                                                              └── Redis (caché en RAM) ← 100% local
+```
+
+## E.5. MySQLTuner (Diagnóstico bajo demanda)
+
+MySQLTuner se instaló para ejecutar diagnósticos periódicos de MariaDB:
+
+```bash
+# Ejecutar diagnóstico (después de 1-2 semanas de uso real)
+sudo mysqltuner --forcemem 12288
+
+# Resultados clave a verificar:
+# - Slow queries: Debe ser 0% o cercano
+# - Joins without indexes: Si es alto, puede indicar tablas sin optimizar
+# - Buffer pool hit rate: Debe ser > 95%
+```
+
+> **Cuándo ejecutar**: Después de 1-2 semanas de uso real con estudiantes, para que
+> las estadísticas reflejen la carga real.
+
+---
+
 **Nota final**: Esta guía está diseñada para ser autocontenida y a prueba de fallos. Si encuentras errores o tienes dudas, consulta las fuentes oficiales listadas arriba o busca en [Debian Forums](https://forums.debian.net/).
