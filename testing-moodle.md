@@ -303,7 +303,7 @@ redis-cli info stats | grep -E "instantaneous|connected|keyspace"
 
 ### Terminal 5: Nginx
 ```bash
-sudo tail -f /var/log/nginx/moodle_access.log | cut -d'"' -f3 | cut -d' ' -f2
+sudo tail -f /var/log/nginx/access.log | cut -d'"' -f3 | cut -d' ' -f2
 # Muestra los códigos de respuesta HTTP en tiempo real (200, 302, 500, etc.)
 ```
 

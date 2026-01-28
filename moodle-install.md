@@ -2759,6 +2759,50 @@ solicitudes de caché internamente sin salir del equipo.
                                                               └── Redis (caché en RAM) ← 100% local
 ```
 
+### Troubleshooting: Moodle lento con Redis configurado
+
+**Síntoma**: Moodle tarda 3+ segundos en cargar páginas aunque Redis esté configurado.
+Al purgar cachés aparece el error:
+```
+Redis::connect(): SSL: Handshake timed out
+Redis::connect(): Failed to enable crypto
+```
+
+**Causa**: El store Redis_MUC tiene "cifrado TLS" habilitado, pero Redis local no usa SSL.
+
+**Diagnóstico**:
+```bash
+# Verificar si encryption está en 1
+sudo grep "encryption" /var/moodledata/muc/config.php
+# Si muestra 'encryption' => 1, ese es el problema
+```
+
+**Solución**:
+```bash
+# Corregir el valor
+sudo sed -i "s/'encryption' => 1/'encryption' => 0/" /var/moodledata/muc/config.php
+
+# Reiniciar PHP-FPM
+sudo systemctl restart php8.4-fpm
+
+# Purgar cachés
+sudo -u www-data php8.4 /var/www/moodle/admin/cli/purge_caches.php
+```
+
+**Verificar el fix**:
+```bash
+# Primera carga (caché fría): ~3s es normal
+# Segunda carga (caché caliente): debe ser <100ms
+curl -s -o /dev/null -w "Tiempo: %{time_total}s\n" http://localhost/
+curl -s -o /dev/null -w "Tiempo: %{time_total}s\n" http://localhost/
+
+# Redis debe tener keys
+redis-cli DBSIZE  # Debe mostrar >5 keys después de navegar
+```
+
+**Prevención**: Al editar el store Redis_MUC desde la interfaz web, asegurar que
+"Usar cifrado TLS" esté **desmarcado**.
+
 ## E.5. MySQLTuner (Diagnóstico bajo demanda)
 
 MySQLTuner se instaló para ejecutar diagnósticos periódicos de MariaDB:
@@ -2775,6 +2819,121 @@ sudo mysqltuner --forcemem 12288
 
 > **Cuándo ejecutar**: Después de 1-2 semanas de uso real con estudiantes, para que
 > las estadísticas reflejen la carga real.
+
+## E.6. Optimizaciones de sistema para 12GB RAM
+
+Ajustes adicionales para aprovechar mejor el hardware del servidor (12GB RAM, 2 cores).
+
+### PHP-FPM Pool
+
+Se aumentó la capacidad de procesos PHP para manejar más usuarios simultáneos.
+
+Archivo: `/etc/php/8.4/fpm/pool.d/www.conf`
+
+| Parámetro | Antes | Después | Razón |
+|-----------|-------|---------|-------|
+| pm.max_children | 30 | **50** | Más usuarios simultáneos |
+| pm.start_servers | 8 | **12** | Arranque más rápido |
+| pm.min_spare_servers | 4 | **6** | Mejor respuesta a picos |
+| pm.max_spare_servers | 16 | **24** | Proporcional a max_children |
+
+Cada proceso PHP usa ~50MB. Con 50 procesos: ~2.5GB máximo (hay margen con 12GB).
+
+```bash
+# Aplicar cambios
+sudo systemctl restart php8.4-fpm
+
+# Verificar procesos activos
+ps aux | grep php-fpm | grep -v grep | wc -l
+```
+
+### Swappiness
+
+Se redujo el uso de swap para priorizar RAM.
+
+```bash
+# Aplicar inmediatamente
+sudo sysctl vm.swappiness=10
+
+# Persistir en reinicios (agregar a /etc/sysctl.conf)
+echo "vm.swappiness=10" | sudo tee -a /etc/sysctl.conf
+
+# Verificar
+cat /proc/sys/vm/swappiness  # Debe mostrar: 10
+```
+
+> **Por qué 10**: Con 12GB de RAM, el sistema no debería usar swap a menos que
+> realmente lo necesite. Swappiness=60 (default) es demasiado agresivo.
+
+### Nginx: gzip y conexiones
+
+Se habilitó compresión para archivos de texto y se aumentaron las conexiones.
+
+Archivo: `/etc/nginx/nginx.conf`
+
+**Worker connections** (de 768 a 1024):
+```nginx
+events {
+    worker_connections 1024;
+}
+```
+
+**Gzip tipos** (descomentar estas líneas):
+```nginx
+gzip on;
+gzip_vary on;
+gzip_proxied any;
+gzip_comp_level 6;
+gzip_buffers 16 8k;
+gzip_http_version 1.1;
+gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+```
+
+```bash
+# Verificar sintaxis y reiniciar
+sudo nginx -t && sudo systemctl restart nginx
+```
+
+> **Impacto del gzip**: Reduce el tamaño de JS/CSS/JSON en ~70%, mejorando tiempos
+> de carga especialmente en redes WiFi lentas del aula.
+
+### Redis: memoria máxima
+
+Se aumentó el límite de memoria para almacenar más caché.
+
+Archivo: `/etc/redis/redis.conf`
+
+```conf
+maxmemory 512mb
+maxmemory-policy allkeys-lru
+```
+
+```bash
+sudo systemctl restart redis-server
+
+# Verificar
+redis-cli CONFIG GET maxmemory
+# Debe mostrar: 536870912 (512MB en bytes)
+```
+
+> **allkeys-lru**: Cuando Redis alcanza el límite, elimina las keys menos usadas
+> recientemente. Esto es correcto para caché (los datos se pueden regenerar).
+
+### Resumen de impacto
+
+Prueba de carga después de aplicar todas las optimizaciones:
+
+```bash
+# 60 conexiones simultáneas, 500 peticiones
+ab -n 500 -c 60 -k http://localhost/
+```
+
+| Métrica | Resultado |
+|---------|-----------|
+| Requests/segundo | ~72 |
+| Tiempo promedio | ~825ms |
+| Peticiones fallidas | 0 |
+| Tiempo con caché caliente | ~30ms |
 
 ---
 
