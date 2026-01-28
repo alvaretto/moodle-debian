@@ -2084,10 +2084,52 @@ Pegar el siguiente bloque CSS. Solo afecta la página de edición de perfil del 
     pointer-events: none;
     opacity: 0.7;
 }
+
+/* === Preferencias: ocultar todo excepto Editar perfil === */
+#page-user-preferences a[href*="change_password"],
+#page-user-preferences a[href*="language"],
+#page-user-preferences a[href*="forum"],
+#page-user-preferences a[href*="editor"],
+#page-user-preferences a[href*="calendar"],
+#page-user-preferences a[href*="contentbank"],
+#page-user-preferences a[href*="message"],
+#page-user-preferences a[href*="notification"] {
+    display: none !important;
+}
 </style>
 ```
 
-### Paso 3: Desactivar auto-matriculación
+### Paso 3: Ocultar correo electrónico entre estudiantes
+
+Forzar que el correo no sea visible para otros estudiantes:
+
+```bash
+sudo -u www-data php /var/www/moodle/admin/cli/cfg.php --name=defaultpreference_maildisplay --set=0
+```
+
+Para aplicarlo a usuarios existentes:
+
+```bash
+sudo -u www-data php -r "
+define('CLI_SCRIPT', true);
+require('/var/www/moodle/config.php');
+global \$DB;
+\$DB->set_field('user', 'maildisplay', 0, []);
+"
+```
+
+> `maildisplay = 0` significa "Solo los administradores pueden ver mi correo".
+
+### Paso 4: Desactivar blogs e insignias
+
+Estas funcionalidades no se usan en el servidor portátil. Desactivarlas elimina sus secciones de la página de Preferencias:
+
+```bash
+sudo -u www-data php /var/www/moodle/admin/cli/cfg.php --name=enableblogs --set=0
+sudo -u www-data php /var/www/moodle/admin/cli/cfg.php --name=enablebadges --set=0
+```
+
+### Paso 5: Desactivar auto-matriculación
 
 **Administración del sitio → Extensiones → Matriculaciones → Gestionar plugins de matriculación**
 
