@@ -2039,76 +2039,96 @@ Los estudiantes verán estos campos al editar su perfil o al registrarse.
 
 El estudiante solo debe poder editar los campos personalizados ("Otros campos"). Los datos básicos los asigna el profesor y el resto del formulario se oculta.
 
-### Paso 1: Bloquear campos vía autenticación
-
-**Administración del sitio → Extensiones → Autenticación → Cuentas manuales**
-
-Cambiar a **Bloqueado** los siguientes campos:
-
-| Campo | Estado |
-|-------|--------|
-| Nombre | Bloqueado |
-| Apellido(s) | Bloqueado |
-| Dirección de correo | Bloqueado |
-| Ciudad/Pueblo | Bloqueado |
-| País | Bloqueado |
-| Institución | Bloqueado |
-| Departamento | Bloqueado |
-
-Guardar cambios. Estos campos aparecerán visibles pero en gris (no editables) en el perfil del estudiante.
-
-### Paso 2: Ocultar campos innecesarios con CSS
+### Paso 1: Configurar CSS y JavaScript restrictivo (solo estudiantes)
 
 **Administración del sitio → Apariencia → HTML adicional → Dentro de HEAD**
 
-Pegar el siguiente bloque CSS. Solo afecta la página de edición de perfil del estudiante (`/user/edit.php`), no afecta la vista del administrador:
+El siguiente bloque detecta si el usuario es profesor/admin (tiene acceso a "Administración del sitio") y aplica restricciones **solo a estudiantes**. El profesor ve el formulario completo sin restricciones.
 
 ```html
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    if (!document.querySelector("a[href*=\"admin/search\"]")) {
+        document.body.classList.add("student-view");
+    }
+});
+</script>
 <style>
-/* === Perfil del estudiante: ocultar campos innecesarios === */
+/* === Restricciones SOLO para estudiantes === */
 
-/* Campos dentro de General */
-#page-user-edit #fitem_id_moodlenetprofile,
-#page-user-edit #fitem_id_timezone,
-#page-user-edit #fitem_id_description_editor,
-#page-user-edit [data-groupname="description_editor"],
-
-/* Sección: Imagen del usuario */
-#page-user-edit #id_moodle_picture,
-
-/* Sección: Nombres adicionales */
-#page-user-edit #id_moodle_additional,
-
-/* Sección: Intereses */
-#page-user-edit #id_moodle_interests,
-
-/* Campos dentro de Opcional */
-#page-user-edit #fitem_id_idnumber,
-#page-user-edit #fitem_id_phone1,
-#page-user-edit #fitem_id_phone2,
-#page-user-edit #fitem_id_address {
+/* Perfil: ocultar campos innecesarios */
+body.student-view#page-user-edit #fitem_id_moodlenetprofile,
+body.student-view#page-user-edit #fitem_id_timezone,
+body.student-view#page-user-edit #fitem_id_description_editor,
+body.student-view#page-user-edit [data-groupname="description_editor"],
+body.student-view#page-user-edit #id_moodle_picture,
+body.student-view#page-user-edit #id_moodle_additional,
+body.student-view#page-user-edit #id_moodle_interests,
+body.student-view#page-user-edit #fitem_id_idnumber,
+body.student-view#page-user-edit #fitem_id_phone1,
+body.student-view#page-user-edit #fitem_id_phone2,
+body.student-view#page-user-edit #fitem_id_address {
     display: none !important;
 }
 
-/* Visibilidad del correo: solo lectura */
-#page-user-edit #fitem_id_maildisplay select {
+/* Perfil: campos bloqueados visualmente para estudiantes */
+body.student-view#page-user-edit #fitem_id_firstname input,
+body.student-view#page-user-edit #fitem_id_lastname input,
+body.student-view#page-user-edit #fitem_id_email input,
+body.student-view#page-user-edit #fitem_id_city input,
+body.student-view#page-user-edit #fitem_id_country select,
+body.student-view#page-user-edit #fitem_id_institution input,
+body.student-view#page-user-edit #fitem_id_department input,
+body.student-view#page-user-edit #fitem_id_maildisplay select {
     pointer-events: none;
-    opacity: 0.7;
+    background-color: #e9ecef;
+    opacity: 0.8;
 }
 
-/* === Preferencias: ocultar todo excepto Editar perfil === */
-#page-user-preferences a[href*="change_password"],
-#page-user-preferences a[href*="language"],
-#page-user-preferences a[href*="forum"],
-#page-user-preferences a[href*="editor"],
-#page-user-preferences a[href*="calendar"],
-#page-user-preferences a[href*="contentbank"],
-#page-user-preferences a[href*="message"],
-#page-user-preferences a[href*="notification"] {
+/* Ocultar sección "Otros campos" para profesor/admin */
+body:not(.student-view)#page-user-edit #id_category_1 {
+    display: none !important;
+}
+
+/* Preferencias: ocultar todo excepto Editar perfil */
+body.student-view#page-user-preferences a[href*="change_password"],
+body.student-view#page-user-preferences a[href*="language"],
+body.student-view#page-user-preferences a[href*="forum"],
+body.student-view#page-user-preferences a[href*="editor"],
+body.student-view#page-user-preferences a[href*="calendar"],
+body.student-view#page-user-preferences a[href*="contentbank"],
+body.student-view#page-user-preferences a[href*="message"],
+body.student-view#page-user-preferences a[href*="notification"] {
     display: none !important;
 }
 </style>
 ```
+
+### Paso 2: Rellenar campos del profesor
+
+Los campos personalizados son **obligatorios** para que los estudiantes no puedan saltarlos. Para que el profesor no quede atrapado en el formulario, se rellenan sus campos con `N/A` (la sección queda oculta por CSS):
+
+```bash
+sudo -u www-data php -r "
+define('CLI_SCRIPT', true);
+require('/var/www/moodle/config.php');
+
+\$userid = 2; // ID del profesor
+\$placeholders = ['celular' => 'N/A', 'acudiente_nombre' => 'N/A', 'acudiente_celular' => 'N/A'];
+
+foreach (\$placeholders as \$shortname => \$value) {
+    \$field = \$DB->get_record('user_info_field', ['shortname' => \$shortname]);
+    \$existing = \$DB->get_record('user_info_data', ['userid' => \$userid, 'fieldid' => \$field->id]);
+    if (\$existing) {
+        \$DB->set_field('user_info_data', 'data', \$value, ['id' => \$existing->id]);
+    } else {
+        \$DB->insert_record('user_info_data', (object)['userid' => \$userid, 'fieldid' => \$field->id, 'data' => \$value, 'dataformat' => 0]);
+    }
+}
+"
+```
+
+> **Nota**: Ejecutar este script cada vez que se cree un nuevo usuario con rol de profesor.
 
 ### Paso 3: Ocultar correo electrónico entre estudiantes
 
