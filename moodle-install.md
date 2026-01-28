@@ -2641,7 +2641,10 @@ LOG="/var/log/mysql/optimize.log"
 DATE=$(date '+%Y-%m-%d %H:%M:%S')
 
 echo "[$DATE] Iniciando optimización de tablas..." >> "$LOG"
-mysqlcheck -o moodle --auto-repair 2>&1 >> "$LOG"
+
+# MariaDB 11.8+ usa mariadbcheck en lugar de mysqlcheck
+/usr/bin/mariadbcheck -o moodle --auto-repair 2>&1 >> "$LOG"
+
 echo "[$DATE] Optimización completada." >> "$LOG"
 echo "---" >> "$LOG"
 ```

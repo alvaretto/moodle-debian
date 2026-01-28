@@ -21,6 +21,7 @@ Documentación para instalar y mantener un servidor Moodle portátil sobre Debia
 | [moodle-install.md](moodle-install.md) | Guía completa de instalación desde cero: Debian, XFCE, LEMP, Moodle, Timeshift, mDNS, optimización, plugins, backups |
 | [moodle-5.md](moodle-5.md) | Plan y registro de la actualización Moodle 4.5 + PHP 8.3 a Moodle 5.1 + PHP 8.4 |
 | [comandos-moodle.md](comandos-moodle.md) | Referencia rápida de comandos: backup, restauración, servicios, cron |
+| [testing-moodle.md](testing-moodle.md) | Pruebas de rendimiento: generadores de cursos, JMeter, monitoreo para 60 estudiantes |
 
 ## Contexto
 
