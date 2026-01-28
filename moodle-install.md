@@ -1987,7 +1987,44 @@ est03,Clave123!,Carlos,Gómez,est03@mail.com,icfes-math,student
 
 > **Nota**: Las contraseñas deben cumplir la política configurada en **Administración del sitio → Seguridad → Normas del sitio**.
 
-## 13.4 Si Algo Falla
+## 13.4 Campos Personalizados de Perfil (Datos de Contacto)
+
+Para recopilar datos adicionales de los estudiantes (celular, datos del acudiente), crear campos personalizados en:
+
+**Administración del sitio → Usuarios → Campos de perfil de usuario**
+
+### Crear categoría
+
+Primero crear una categoría para agrupar los campos:
+
+1. Clic en **"Crear una nueva categoría de perfil"**
+2. Nombre: `Datos de contacto`
+3. Guardar
+
+### Crear campos
+
+Dentro de la categoría "Datos de contacto", crear 3 campos de tipo **Entrada de texto**:
+
+| Campo | Nombre corto | Obligatorio | Visible | Editable |
+|-------|-------------|-------------|---------|----------|
+| Celular del estudiante | `celular` | Sí | Sí | Sí |
+| Nombre del acudiente | `acudiente_nombre` | Sí | Sí | Sí |
+| Celular del acudiente | `acudiente_celular` | Sí | Sí | Sí |
+
+Para cada campo:
+
+1. Clic en **"Crear un nuevo campo de perfil"** → **Entrada de texto**
+2. Nombre: (según la tabla)
+3. Nombre corto: (según la tabla)
+4. **¿Es este campo obligatorio?**: Sí
+5. **¿Visible para quién?**: Visible para el usuario
+6. **¿Editable por el usuario?**: Sí
+7. **¿Mostrar en la página de registro?**: Sí
+8. Guardar
+
+Los estudiantes verán estos campos al editar su perfil o al registrarse.
+
+## 13.5 Si Algo Falla
 
 **Problema menor (Moodle no funciona):**
 
