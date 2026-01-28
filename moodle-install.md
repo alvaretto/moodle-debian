@@ -1609,6 +1609,38 @@ echo "Restauración completada exitosamente."
 sudo chmod +x /usr/local/bin/moodle-restore.sh
 ```
 
+## 8.5 Repositorio remoto en GitHub
+
+Subir la documentación y configuración del proyecto a GitHub como respaldo adicional.
+
+### Generar clave SSH
+
+```bash
+ssh-keygen -t ed25519 -C "alvaretto@moodle.local" -f ~/.ssh/id_ed25519 -N ""
+```
+
+Copiar la clave pública:
+
+```bash
+cat ~/.ssh/id_ed25519.pub
+```
+
+Agregar la clave en GitHub:
+
+1. Ir a https://github.com/settings/keys
+2. Clic en **New SSH key**
+3. Título: `moodle-server`
+4. Pegar la clave pública
+5. Clic en **Add SSH key**
+
+### Configurar remoto y subir
+
+```bash
+cd ~/Proyectos/MoodleDebian
+git remote add origin git@github.com:alvaretto/moodle-debian.git
+git push -u origin master
+```
+
 ---
 
 # PARTE 9: Optimización para Tablets Windows 10
