@@ -2129,7 +2129,26 @@ sudo -u www-data php /var/www/moodle/admin/cli/cfg.php --name=enableblogs --set=
 sudo -u www-data php /var/www/moodle/admin/cli/cfg.php --name=enablebadges --set=0
 ```
 
-### Paso 5: Desactivar auto-matriculación
+### Paso 5: Ocultar lista de Participantes a estudiantes
+
+Impedir que los estudiantes vean la pestaña "Participantes" del curso, prohibiendo la capacidad a nivel de sistema:
+
+```bash
+sudo -u www-data php -r "
+define('CLI_SCRIPT', true);
+require('/var/www/moodle/config.php');
+require_once(\$CFG->libdir . '/accesslib.php');
+
+\$studentrole = \$DB->get_record('role', ['shortname' => 'student']);
+\$context = context_system::instance();
+assign_capability('moodle/course:viewparticipants', CAP_PROHIBIT, \$studentrole->id, \$context->id, true);
+"
+sudo -u www-data php /var/www/moodle/admin/cli/purge_caches.php
+```
+
+> `CAP_PROHIBIT` garantiza que no se pueda sobrescribir en ningún contexto inferior (curso, categoría).
+
+### Paso 6: Desactivar auto-matriculación
 
 **Administración del sitio → Extensiones → Matriculaciones → Gestionar plugins de matriculación**
 
