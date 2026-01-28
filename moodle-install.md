@@ -1492,12 +1492,60 @@ sudo crontab -e
 ```cron
 # Backup de Moodle cada día a las 3:00 AM
 0 3 * * * /usr/local/bin/moodle-backup.sh >> /var/log/moodle-backup.log 2>&1
-
-# Cron de Moodle cada 5 minutos
-*/5 * * * * /usr/bin/php8.4 /var/www/moodle/admin/cli/cron.php > /dev/null 2>&1
 ```
 
-## 8.3 Script de Restauración Moodle
+## 8.3 Cron de Moodle con systemd
+
+Moodle requiere que su cron se ejecute **cada minuto**. En lugar de crontab, usamos un timer de systemd que es más confiable: ejecuta como `www-data`, previene ejecuciones simultáneas y permite mejor logging con `journalctl`.
+
+```bash
+sudo nano /etc/systemd/system/moodle-cron.service
+```
+
+```ini
+[Unit]
+Description=Moodle Cron
+After=network.target mariadb.service redis-server.service php8.4-fpm.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+ExecStart=/usr/bin/php8.4 /var/www/moodle/admin/cli/cron.php
+StandardOutput=null
+```
+
+```bash
+sudo nano /etc/systemd/system/moodle-cron.timer
+```
+
+```ini
+[Unit]
+Description=Ejecutar Moodle Cron cada minuto
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target
+```
+
+Activar el timer:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now moodle-cron.timer
+```
+
+Verificar que esté funcionando:
+
+```bash
+sudo systemctl status moodle-cron.timer
+sudo journalctl -u moodle-cron --since "5 minutes ago"
+```
+
+## 8.4 Script de Restauración Moodle
 
 ```bash
 sudo nano /usr/local/bin/moodle-restore.sh
