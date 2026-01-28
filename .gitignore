@@ -1,2 +1,8 @@
 .claude/
 datos-sensibles/
+
+# Archivos generados/temporales
+*.pdf
+*.jpg
+*.jpeg
+*.png

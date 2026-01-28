@@ -3026,6 +3026,160 @@ systemctl is-enabled cups ModemManager colord
 free -h
 ```
 
+## E.8. Seguridad: Firewall y Fail2ban
+
+### Firewall (UFW)
+
+Se configuró UFW para permitir solo los puertos necesarios:
+
+```bash
+sudo ufw --force reset
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow ssh
+sudo ufw allow http
+sudo ufw allow https
+sudo ufw allow 5353/udp comment 'mDNS para moodle.local'
+sudo ufw --force enable
+```
+
+| Puerto | Servicio | Razón |
+|--------|----------|-------|
+| 22/tcp | SSH | Administración remota |
+| 80/tcp | HTTP | Moodle web |
+| 443/tcp | HTTPS | Moodle web (futuro SSL) |
+| 5353/udp | mDNS | Resolución de `moodle.local` |
+
+```bash
+# Verificar estado
+sudo ufw status numbered
+```
+
+### Fail2ban
+
+Protege contra ataques de fuerza bruta. Configuración en `/etc/fail2ban/jail.local`:
+
+```bash
+sudo apt install -y fail2ban
+
+sudo tee /etc/fail2ban/jail.local << 'EOF'
+[DEFAULT]
+bantime = 1h
+findtime = 10m
+maxretry = 5
+ignoreip = 127.0.0.1/8 192.168.0.0/16 192.168.1.0/24
+
+[sshd]
+enabled = true
+port = ssh
+maxretry = 3
+bantime = 2h
+
+[nginx-http-auth]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/error.log
+maxretry = 5
+
+[nginx-limit-req]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/error.log
+maxretry = 10
+EOF
+
+sudo systemctl enable --now fail2ban
+```
+
+| Jail | Protege | Acción |
+|------|---------|--------|
+| sshd | SSH | Banea 2h después de 3 intentos fallidos |
+| nginx-http-auth | Autenticación HTTP | Banea 1h después de 5 intentos |
+| nginx-limit-req | Rate limiting | Banea 1h después de 10 excesos |
+
+> **ignoreip**: Las redes locales 192.168.x.x están excluidas para no bloquear
+> accidentalmente las tablets del aula.
+
+```bash
+# Ver estado de jails
+sudo fail2ban-client status
+
+# Ver IPs baneadas en SSH
+sudo fail2ban-client status sshd
+
+# Desbanear una IP manualmente
+sudo fail2ban-client set sshd unbanip 192.168.1.100
+```
+
+## E.9. Monitoreo: Health Check
+
+Script de diagnóstico rápido en `/usr/local/bin/moodle-health-check.sh`:
+
+```bash
+sudo tee /usr/local/bin/moodle-health-check.sh << 'EOF'
+#!/bin/bash
+# Health check básico para servidor Moodle
+
+echo "=== MOODLE HEALTH CHECK ==="
+echo "Fecha: $(date)"
+echo
+
+echo "--- Servicios ---"
+for svc in nginx php8.4-fpm mariadb redis-server; do
+    status=$(systemctl is-active $svc)
+    [ "$status" = "active" ] && echo "✓ $svc" || echo "✗ $svc: $status"
+done
+echo
+
+echo "--- Recursos ---"
+echo "CPU Load: $(cut -d' ' -f1-3 /proc/loadavg)"
+echo "RAM: $(free -h | awk '/^Mem:/ {print $3 "/" $2 " (" $7 " disponible)"}')"
+echo "Disco: $(df -h / | awk 'NR==2 {print $3 "/" $2 " (" $5 " usado)"}')"
+echo
+
+echo "--- Moodle ---"
+echo "Respuesta: $(curl -s -o /dev/null -w '%{http_code} %{time_total}s' http://localhost/)"
+echo "Redis keys: $(redis-cli DBSIZE 2>/dev/null | cut -d: -f2)"
+echo "PHP-FPM: $(pgrep -c php-fpm) procesos"
+echo
+
+echo "--- Seguridad ---"
+echo "IPs baneadas: $(sudo fail2ban-client status sshd 2>/dev/null | awk '/Currently banned/ {print $NF}')"
+EOF
+
+sudo chmod +x /usr/local/bin/moodle-health-check.sh
+```
+
+Ejecutar con:
+```bash
+sudo moodle-health-check.sh
+```
+
+Salida esperada:
+```
+=== MOODLE HEALTH CHECK ===
+Fecha: mié 28 ene 2026 12:22:11 -05
+
+--- Servicios ---
+✓ nginx
+✓ php8.4-fpm
+✓ mariadb
+✓ redis-server
+
+--- Recursos ---
+CPU Load: 0.5 0.8 0.9
+RAM: 2.7Gi/11Gi (8.8Gi disponible)
+Disco: 17G/107G (16% usado)
+
+--- Moodle ---
+Respuesta: 303 0.015s
+Redis keys: 533
+PHP-FPM: 25 procesos
+
+--- Seguridad ---
+IPs baneadas: 0
+```
+
 ---
 
 **Nota final**: Esta guía está diseñada para ser autocontenida y a prueba de fallos. Si encuentras errores o tienes dudas, consulta las fuentes oficiales listadas arriba o busca en [Debian Forums](https://forums.debian.net/).
