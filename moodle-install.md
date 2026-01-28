@@ -1264,6 +1264,20 @@ sudo git clone -b MOODLE_501_STABLE https://github.com/moodle/moodle.git
 sudo chown -R www-data:www-data moodle
 ```
 
+### Instalar Composer y dependencias
+
+Moodle 5.1 requiere las dependencias de Composer para funcionar correctamente. Sin ellas, la interfaz de administración mostrará el aviso "Composer vendor directory not found".
+
+```bash
+# Instalar Composer globalmente
+sudo php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');"
+sudo php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+sudo rm /tmp/composer-setup.php
+
+# Instalar dependencias de Moodle
+sudo -u www-data composer install --no-dev --classmap-authoritative -d /var/www/moodle
+```
+
 ## 7.2 Directorios
 
 ```bash
@@ -2134,6 +2148,25 @@ Crear manualmente los subvolúmenes BTRFS siguiendo [esta guía](https://mutschl
 - RSYNC: Snapshot tarda 5-10 minutos, ocupa más espacio
 - BTRFS: Snapshot instantáneo, ahorra espacio
 - Ambos restauran el sistema correctamente
+
+### Error "permisos no válidos al tratar de crear un directorio" en Extensiones
+
+**Síntomas**:
+- Al entrar a **Administración del sitio > Extensiones** aparece: "Se han detectado permisos no válidos al tratar de crear un directorio"
+- Con depuración activa muestra: `/tmp/requestdir/... can not be created, check permissions. Error code: invaliddatarootpermissions`
+
+**Causa**:
+- El directorio `/tmp/requestdir` fue creado por `root` y `www-data` no puede escribir en él
+- Esto ocurre cuando se ejecutan comandos de Moodle como `root` en lugar de `www-data`
+
+**Solución**:
+
+```bash
+sudo chown -R www-data:www-data /tmp/requestdir
+sudo chmod 750 /tmp/requestdir
+```
+
+> **Prevención**: Siempre ejecutar los comandos CLI de Moodle con `sudo -u www-data` para evitar que se creen directorios temporales como `root`.
 
 ### Moodle muy lento con 100 estudiantes
 
