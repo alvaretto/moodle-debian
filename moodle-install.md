@@ -2935,6 +2935,97 @@ ab -n 500 -c 60 -k http://localhost/
 | Peticiones fallidas | 0 |
 | Tiempo con caché caliente | ~30ms |
 
+## E.7. Optimizaciones del sistema operativo Debian
+
+Ajustes a nivel del kernel y servicios de Debian para maximizar recursos disponibles.
+
+### Sysctl: Parámetros del kernel
+
+Se creó `/etc/sysctl.d/99-moodle-optimizations.conf`:
+
+```bash
+sudo tee /etc/sysctl.d/99-moodle-optimizations.conf << 'EOF'
+# Optimizaciones para servidor Moodle - 12GB RAM
+
+# Reducir uso de swap (preferir RAM)
+vm.swappiness = 10
+
+# Mantener más inodes/dentries en caché (mejor para muchos archivos PHP)
+vm.vfs_cache_pressure = 50
+
+# Más conexiones TCP entrantes (60+ tablets simultáneas)
+net.ipv4.tcp_max_syn_backlog = 4096
+net.core.netdev_max_backlog = 4096
+
+# Reusar conexiones TIME_WAIT (reduce overhead)
+net.ipv4.tcp_tw_reuse = 1
+
+# Keepalive más agresivo (detectar conexiones muertas de tablets)
+net.ipv4.tcp_keepalive_time = 600
+net.ipv4.tcp_keepalive_intvl = 60
+net.ipv4.tcp_keepalive_probes = 5
+EOF
+
+# Aplicar inmediatamente
+sudo sysctl --system
+```
+
+| Parámetro | Valor | Efecto |
+|-----------|-------|--------|
+| vm.swappiness | 10 | Solo usa swap cuando RAM está casi llena |
+| vm.vfs_cache_pressure | 50 | Mantiene más metadata de archivos en RAM |
+| tcp_max_syn_backlog | 4096 | Cola más grande para conexiones entrantes |
+| tcp_tw_reuse | 1 | Reutiliza conexiones cerradas más rápido |
+| tcp_keepalive_* | 600/60/5 | Detecta tablets desconectadas en ~10 min |
+
+### Servicios innecesarios deshabilitados
+
+Estos servicios no son necesarios para un servidor Moodle portátil:
+
+```bash
+# Deshabilitar servicios innecesarios
+sudo systemctl disable --now cups cups-browsed  # Impresión
+sudo systemctl disable --now ModemManager       # Modems 3G/4G
+sudo systemctl disable --now colord             # Perfiles de color
+```
+
+| Servicio | Función | RAM liberada |
+|----------|---------|--------------|
+| cups, cups-browsed | Sistema de impresión | ~30 MB |
+| ModemManager | Gestión de modems USB | ~15 MB |
+| colord | Perfiles de color para monitores | ~10 MB |
+
+> **Nota**: Estos servicios se pueden rehabilitar si se necesitan:
+> ```bash
+> sudo systemctl enable --now cups  # Ejemplo: rehabilitar impresión
+> ```
+
+### Servicios que NO se deben deshabilitar
+
+| Servicio | Razón |
+|----------|-------|
+| avahi-daemon | Necesario para `moodle.local` (mDNS) |
+| NetworkManager | Gestión de red |
+| lightdm | Escritorio XFCE |
+| polkit | Autenticación para tareas administrativas |
+| cron | Tareas programadas de Moodle |
+
+### Verificar optimizaciones
+
+```bash
+# Verificar sysctl
+cat /proc/sys/vm/swappiness              # Debe ser 10
+cat /proc/sys/vm/vfs_cache_pressure      # Debe ser 50
+cat /proc/sys/net/ipv4/tcp_tw_reuse      # Debe ser 1
+
+# Verificar servicios deshabilitados
+systemctl is-enabled cups ModemManager colord
+# Deben mostrar: disabled
+
+# RAM disponible (debe ser >9GB con sistema idle)
+free -h
+```
+
 ---
 
 **Nota final**: Esta guía está diseñada para ser autocontenida y a prueba de fallos. Si encuentras errores o tienes dudas, consulta las fuentes oficiales listadas arriba o busca en [Debian Forums](https://forums.debian.net/).
