@@ -3182,4 +3182,104 @@ IPs baneadas: 0
 
 ---
 
+## E.10. Estabilidad WiFi (RTL8188CE y similares)
+
+> **Problema**: Errores frecuentes "Connection Refused" o desconexiones WiFi intermitentes,
+> especialmente con chipsets Realtek RTL8188CE/RTL8192CE comunes en laptops económicos.
+
+### Identificar tu chipset WiFi
+
+```bash
+lspci | grep -i network
+# Ejemplo: RTL8188CE 802.11b/g/n WiFi Adapter
+```
+
+### Solución 1: Deshabilitar Power Save del chipset
+
+El modo de ahorro de energía causa que el chipset "duerma" y pierda conexión.
+
+```bash
+sudo tee /etc/modprobe.d/rtl8188ce.conf << 'EOF'
+# Fix para RTL8188CE - Deshabilitar power save (causa disconnects)
+
+# Deshabilitar firmware low power state y inactive power save
+options rtl8192ce fwlps=0 ips=0
+options rtlwifi fwlps=0 ips=0
+
+# Deshabilitar software encryption (más estable)
+options rtl8192ce swenc=1
+EOF
+```
+
+### Solución 2: Deshabilitar Power Save en NetworkManager
+
+```bash
+sudo tee /etc/NetworkManager/conf.d/wifi-stability.conf << 'EOF'
+# Configuración para mejorar estabilidad WiFi
+
+[connection]
+# Deshabilitar power save de WiFi a nivel NetworkManager
+# 0 = default, 1 = ignore, 2 = disable, 3 = enable
+wifi.powersave = 2
+
+[device]
+# Scan aleatorio para reducir interferencia
+wifi.scan-rand-mac-address = yes
+EOF
+
+# Aplicar cambios
+sudo systemctl restart NetworkManager
+```
+
+### Solución 3: TCP Keepalive agresivo
+
+Ya incluido en `/etc/sysctl.d/99-moodle.conf`:
+
+```bash
+# Detectar conexiones muertas más rápido (útil para WiFi inestable)
+net.ipv4.tcp_keepalive_time = 60      # Revisar cada 60s (default: 7200)
+net.ipv4.tcp_keepalive_intvl = 10     # Reintentar cada 10s
+net.ipv4.tcp_keepalive_probes = 6     # 6 intentos antes de declarar muerta
+net.ipv4.tcp_retries2 = 8             # Más reintentos antes de fallar
+
+# Aplicar
+sudo sysctl -p /etc/sysctl.d/99-moodle.conf
+```
+
+### Aplicar cambios
+
+```bash
+# Reiniciar para que modprobe tome efecto
+sudo reboot
+```
+
+### Verificar después del reinicio
+
+```bash
+# Ver parámetros del módulo
+cat /sys/module/rtl8192ce/parameters/fwlps  # Debe ser 0
+cat /sys/module/rtl8192ce/parameters/ips    # Debe ser 0
+
+# Ver power save de NetworkManager
+nmcli -t -f WIFI-PROPERTIES.POWERSAVE dev show wlp1s0
+```
+
+### Si sigue fallando: Adaptador USB WiFi
+
+Los chipsets Realtek integrados son problemáticos. Como respaldo, considera un adaptador USB WiFi con chipset más estable:
+
+| Chipset | Soporte Linux | Recomendación |
+|---------|---------------|---------------|
+| Atheros AR9271 | Excelente | TP-Link TL-WN722N v1 |
+| Intel | Excelente | Cualquier Intel WiFi |
+| MediaTek MT7601U | Bueno | Adaptadores genéricos baratos |
+| Realtek RTL8812AU | Aceptable | Solo si no hay alternativa |
+
+```bash
+# Ver adaptadores USB WiFi conectados
+lsusb | grep -i wireless
+```
+
+---
+
 **Nota final**: Esta guía está diseñada para ser autocontenida y a prueba de fallos. Si encuentras errores o tienes dudas, consulta las fuentes oficiales listadas arriba o busca en [Debian Forums](https://forums.debian.net/).
