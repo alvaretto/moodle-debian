@@ -1,4 +1,8 @@
-.claude/
+# Claude Code - incluir ecosistema, excluir configuración local
+.claude/settings.local.json
+.claude/*.log
+
+# Datos sensibles de estudiantes
 datos-sensibles/
 
 # Archivos generados/temporales

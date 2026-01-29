@@ -97,6 +97,33 @@ sudo timeshift --restore
 0 3 * * * /usr/local/bin/moodle-backup.sh >> /var/log/moodle-backup.log 2>&1
 ```
 
+## Claude Code Ecosystem
+
+This project includes a comprehensive Claude Code ecosystem in `.claude/` with:
+
+### Skills (Slash Commands)
+| Command | Purpose |
+|---------|---------|
+| `/moodle-status` | Check server health and resources |
+| `/moodle-backup` | Manage backups (run, list, verify, restore) |
+| `/moodle-optimize` | Performance tuning (php, mysql, redis, nginx, kernel) |
+| `/moodle-test` | Load testing for N students |
+| `/moodle-upgrade` | Plan and execute upgrades |
+| `/moodle-security` | Security audit and hardening |
+| `/doc-update` | Documentation maintenance |
+
+### Specialized Agents
+- **moodle-ops**: Real-time operations and troubleshooting
+- **moodle-architect**: Architecture planning and scaling
+- **moodle-docs**: Technical writing and documentation
+
+### Automation Hooks
+- Protected files validation (PreToolUse)
+- Version consistency checks (PostToolUse)
+- Change logging (PostToolUse)
+
+See `.claude/README.md` for full ecosystem documentation.
+
 ## Context for Claude
 
 - This repository documents a **production deployment**, not development code

@@ -1,0 +1,81 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(tree *)",
+      "Bash(wc *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(readlink *)",
+      "Bash(date *)",
+      "Bash(echo *)",
+      "Bash(printf *)",
+      "Read(*)",
+      "Glob(*)",
+      "Grep(*)"
+    ],
+    "ask": [
+      "Bash(sudo *)",
+      "Bash(ssh *)",
+      "Bash(scp *)",
+      "Write(*)",
+      "Edit(*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(sudo rm -rf /)",
+      "Read(.claude/settings.local.json)",
+      "Read(datos-sensibles/*)"
+    ]
+  },
+  "env": {
+    "MOODLE_SERVER": "moodle.local",
+    "MOODLE_PATH": "/var/www/moodle",
+    "MOODLEDATA_PATH": "/var/moodledata",
+    "PHP_VERSION": "8.4",
+    "MOODLE_VERSION": "5.1.1"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '📚 Moodle Debian Project - Stack: Debian 13 + Moodle 5.1.1 + PHP 8.4 + MariaDB 11.8 + Redis 8.0'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import json,sys; d=json.load(sys.stdin); p=d.get('tool_input',{}).get('file_path',''); sys.exit(2 if 'datos-sensibles' in p or p.endswith('.local.json') else 0)\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import json,sys; d=json.load(sys.stdin); p=d.get('tool_input',{}).get('file_path',''); print(f'✓ Archivo modificado: {p}') if p.endswith('.md') else None\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "respectGitignore": true,
+  "outputStyle": "Explanatory"
+}
